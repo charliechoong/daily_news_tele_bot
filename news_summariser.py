@@ -46,11 +46,9 @@ def summarize_news(raw_news_text):
         sys.exit(1)
 
 def send_telegram_message(token, chat_id, text):
-    """Dispatches the final summary text to the target Telegram chat."""
+    """Dispatches the final summary text to the target Telegram chat with fallback handling."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
-    # Telegram's maximum message limit is 4096 characters. 
-    # Safe boundary truncation prevents unexpected api delivery errors.
     if len(text) > 4000:
         text = text[:3900] + "\n\n...[Truncated due to text limit]"
         
@@ -60,14 +58,22 @@ def send_telegram_message(token, chat_id, text):
         "parse_mode": "Markdown"
     }
     
-    try:
+    # Attempt delivery with Markdown formatting
+    response = requests.post(url, json=payload)
+    
+    # If Telegram rejects it due to strict Markdown parsing errors,
+    # strip the parse_mode and fall back to plain text delivery
+    if response.status_code == 400:
+        print("Telegram rejected Markdown syntax. Stripping formatting and retrying plain text transfer...")
+        payload.pop("parse_mode", None)
         response = requests.post(url, json=payload)
+        
+    try:
         response.raise_for_status()
         print("Success! Summary dispatched to Telegram.")
     except Exception as e:
         print(f"Error sending message via Telegram Bot API: {e}")
         sys.exit(1)
-
 def main():
     # Defensive checks for production environments
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
