@@ -4,7 +4,7 @@ on:
   schedule:
     # Triggers automatically every day at 00:00 UTC (8:00 AM Singapore Time)
     # Modify this cron string to alter your standard delivery time window.
-    - cron: '0 0 * * *'
+    - cron: '0 0,12 * * *'
   workflow_dispatch: # Enables a manual run option directly from the GitHub Actions tab
 
 jobs:

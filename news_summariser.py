@@ -1,44 +1,31 @@
 import os
 import sys
-import feedparser
 import requests
 from google import genai
+from google.genai import types
 
-# Configuration: Swap out the RSS URL to pull from your favorite media outlets
-RSS_URL = "http://feeds.bbci.co.uk/news/world/rss.xml"
-
-def fetch_top_news(url, limit=12):
-    """Fetches the latest headlines and short summaries from an RSS feed."""
-    feed = feedparser.parse(url)
-    articles = []
-    
-    for entry in feed.entries[:limit]:
-        title = entry.get("title", "No Title")
-        link = entry.get("link", "")
-        summary = entry.get("summary", entry.get("description", ""))
-        articles.append(f"Title: {title}\nSummary: {summary}\nLink: {link}\n---")
-        
-    return "\n\n".join(articles)
-
-def summarize_news(raw_news_text):
-    """Generates a cohesive, structured summary using the Google GenAI SDK."""
+def summarize_news():
+    """Leverages native Google Search grounding to dynamically discover and summarize news."""
     try:
         # The SDK client automatically scans for the GEMINI_API_KEY environment variable
         client = genai.Client()
+
+        # Enable the native Google Search tool configuration
+        config = types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        )
         
         prompt = (
-            "You are an expert news curator. Analyze the following raw news items from today's feed. "
-            "Identify and extract the top 5 most globally impactful events.\n\n"
+            "Perform a web search on top 5 most globally impactful events.\n\n"
             "Provide an engaging, bulleted breakdown for each chosen event. "
             "Use clear headings, clean spacing, and relevant emojis to make it highly readable on mobile. "
-            "Crucially, make sure to cleanly insert the original source link directly below each story's breakdown "
-            "so I can tap it for deeper reading. Avoid overly lengthy prose.\n\n"
-            f"RAW NEWS FEED:\n{raw_news_text}"
+            "Avoid overly lengthy prose.\n\n"
         )
         
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=prompt
+            contents=prompt,
+            config=config
         )
         return response.text
     except Exception as e:
@@ -74,6 +61,7 @@ def send_telegram_message(token, chat_id, text):
     except Exception as e:
         print(f"Error sending message via Telegram Bot API: {e}")
         sys.exit(1)
+
 def main():
     # Defensive checks for production environments
     telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -83,17 +71,10 @@ def main():
         print("Runtime Error: Missing required system environment variables.")
         sys.exit(1)
         
-    print("1. Extracting data from RSS target...")
-    raw_news = fetch_top_news(RSS_URL)
+    print("1. Constructing contextual intelligence digest via Gemini...")
+    summary = summarize_news()
     
-    if not raw_news:
-        print("Aborting: Empty news payload captured.")
-        return
-        
-    print("2. Constructing contextual intelligence digest via Gemini...")
-    summary = summarize_news(raw_news)
-    
-    print("3. Executing chat message transfer pipeline...")
+    print("2. Executing chat message transfer pipeline...")
     send_telegram_message(telegram_token, telegram_chat_id, summary)
 
 if __name__ == "__main__":
