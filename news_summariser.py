@@ -16,8 +16,8 @@ def summarize_news():
         )
         
         prompt = (
-            "Perform a web search on top 5 most globally impactful events.\n\n"
-            "Provide an engaging, bulleted breakdown for each chosen event. "
+            "Perform a web search on top 5 significant events that happened around the world today.\n\n"
+            "Provide an engaging, bulleted breakdown for each chosen event."
             "Use clear headings, clean spacing, and relevant emojis to make it highly readable on mobile. "
             "Avoid overly lengthy prose.\n\n"
         )
