@@ -16,8 +16,9 @@ def summarize_news():
         )
         
         prompt = (
-            "Perform a web search on top 5 significant events that happened around the world today.\n\n"
+            "Perform a web search on top 5 significant events that happened around the world in the past 12 hours.\n\n"
             "Provide an engaging, bulleted breakdown for each chosen event."
+            "Also, provide any significant updates on COIN, META, NOW, UNH, DUOL, SPCX, LULU and BABA"
             "Use clear headings, clean spacing, and relevant emojis to make it highly readable on mobile. "
             "Avoid overly lengthy prose.\n\n"
         )
@@ -36,8 +37,9 @@ def send_telegram_message(token, chat_id, text):
     """Dispatches the final summary text to the target Telegram chat with fallback handling."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
+    
     if len(text) > 4000:
-        text = text[:3900] + "\n\n...[Truncated due to text limit]"
+        text += "\n\n" + f"[{len(text)} characters]"
         
     payload = {
         "chat_id": chat_id,
