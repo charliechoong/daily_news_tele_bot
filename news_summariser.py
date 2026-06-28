@@ -36,33 +36,60 @@ def summarize_news():
 def send_telegram_message(token, chat_id, text):
     """Dispatches the final summary text to the target Telegram chat with fallback handling."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
+    MAX_CHUNK_SIZE = 4000  # Leave a conservative safety margin under 4096
     
+    # 1. Chunking Buffer Logic Architecture
+    if len(text) <= MAX_CHUNK_SIZE:
+        chunks = [text]
+    else:
+        paragraphs = text.split("\n\n")
+        chunks = []
+        current_chunk = ""
+        for paragraph in paragraphs:
+            # Edge case mitigation: if a single paragraph itself is somehow over 4000 chars
+            if len(paragraph) > MAX_CHUNK_SIZE:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+                # Force slice the anomaly raw
+                for i in range(0, len(paragraph), MAX_CHUNK_SIZE):
+                    chunks.append(paragraph[i:i+MAX_CHUNK_SIZE].strip())
+            # If combining this paragraph breaks the max limit, flush the active chunk
+            elif len(current_chunk) + len(paragraph) + 2 > MAX_CHUNK_SIZE:
+                chunks.append(current_chunk.strip())
+                current_chunk = paragraph
+            # Otherwise, compound the paragraph into the operational buffer
+            else:
+                if current_chunk:
+                    current_chunk += "\n\n" + paragraph
+                else:
+                    current_chunk = paragraph
+        if current_chunk:
+            chunks.append(current_chunk.strip())
     
-    if len(text) > 4000:
-        text += "\n\n" + f"[{len(text)} characters]"
+    # 2. Sequential Dispatch Pipeline execution
+    print(f"Message payload mapped and separated into {len(chunks)} sequential packet(s).")
+    for index, chunk in enumerate(chunks):
+        payload = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "parse_mode": "Markdown"
+        }
         
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown"
-    }
-    
-    # Attempt delivery with Markdown formatting
-    response = requests.post(url, json=payload)
-    
-    # If Telegram rejects it due to strict Markdown parsing errors,
-    # strip the parse_mode and fall back to plain text delivery
-    if response.status_code == 400:
-        print("Telegram rejected Markdown syntax. Stripping formatting and retrying plain text transfer...")
-        payload.pop("parse_mode", None)
         response = requests.post(url, json=payload)
         
-    try:
-        response.raise_for_status()
-        print("Success! Summary dispatched to Telegram.")
-    except Exception as e:
-        print(f"Error sending message via Telegram Bot API: {e}")
-        sys.exit(1)
+        # Structural fallback: if strict Markdown constraints break inside the packet
+        if response.status_code == 400:
+            print(f"Formatting validation error on package {index+1}. Retrying via plain text transfer...")
+            payload.pop("parse_mode", None)
+            response = requests.post(url, json=payload)
+            
+        try:
+            response.raise_for_status()
+            print(f"Packet {index+1}/{len(chunks)} transferred cleanly to Telegram.")
+        except Exception as e:
+            print(f"Fatal transfer exception on network package {index+1}: {e}")
+            sys.exit(1)
 
 def main():
     # Defensive checks for production environments
